@@ -379,6 +379,121 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
     }
 
     let localityRequestId = 0;
+    let seccionalRequestId = 0;
+    let registryDirectory = null;
+    const REGISTRY_DIRECTORY_CACHE_KEY = 'gestoria_dnrpa_registros_v1';
+
+    async function loadRegistryDirectory() {
+      if (registryDirectory) return registryDirectory;
+
+      let cachedOffices = null;
+      try {
+        const cached = JSON.parse(localStorage.getItem(REGISTRY_DIRECTORY_CACHE_KEY) || 'null');
+        if (Array.isArray(cached)) cachedOffices = cached;
+      } catch (error) {
+        console.warn('No se pudo leer la caché de registros seccionales:', error);
+      }
+
+      try {
+        const response = await fetch('./registros-seccionales.json');
+        if (!response.ok) throw new Error(`El directorio DNRPA respondió ${response.status}`);
+        const directory = await response.json();
+        if (!Array.isArray(directory.offices)) {
+          throw new Error('El directorio DNRPA tiene un formato inválido.');
+        }
+        registryDirectory = directory.offices;
+        try {
+          localStorage.setItem(REGISTRY_DIRECTORY_CACHE_KEY, JSON.stringify(registryDirectory));
+        } catch (error) {
+          console.warn('No se pudo guardar la caché de registros seccionales:', error);
+        }
+      } catch (error) {
+        console.warn('No se pudo cargar el directorio DNRPA:', error);
+        if (!cachedOffices) throw error;
+        registryDirectory = cachedOffices;
+        showToast('Sin conexión: se muestran los registros seccionales guardados.', 'info');
+      }
+
+      return registryDirectory;
+    }
+
+    function normalizeDirectoryText(value) {
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/gi, ' ')
+        .trim()
+        .toLocaleUpperCase('es');
+    }
+
+    function getLocalSeccionales(province, locality) {
+      if (!province || !locality || !Array.isArray(registryDirectory)) return [];
+      const normalizedProvince = normalizeDirectoryText(province);
+      const normalizedLocality = normalizeDirectoryText(locality);
+      const isCaba = normalizedProvince === normalizeDirectoryText('Ciudad Autónoma de Buenos Aires');
+
+      return registryDirectory
+        .filter(office =>
+          normalizeDirectoryText(office.province) === normalizedProvince &&
+          normalizeDirectoryText(office.locality) ===
+            (isCaba ? 'CABA' : normalizedLocality)
+        )
+        .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    }
+
+    function renderSeccionalOptions(province, locality, selectedSeccional = '') {
+      const select = document.getElementById('client-seccional');
+      const offices = getLocalSeccionales(province, locality);
+      select.replaceChildren();
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = !locality
+        ? 'Seleccionar localidad primero'
+        : offices.length
+          ? 'Seleccionar registro seccional'
+          : 'No hay registros publicados para esta localidad';
+      select.appendChild(placeholder);
+
+      const selectedMatch = offices.find(
+        office => normalizeDirectoryText(office.name) === normalizeDirectoryText(selectedSeccional)
+      );
+      if (selectedSeccional && !selectedMatch) {
+        const savedOption = document.createElement('option');
+        savedOption.value = selectedSeccional;
+        savedOption.textContent = `${selectedSeccional} (guardado)`;
+        select.appendChild(savedOption);
+      }
+
+      offices.forEach(office => {
+        const option = document.createElement('option');
+        option.value = office.name;
+        option.textContent = office.name;
+        select.appendChild(option);
+      });
+
+      select.value = selectedMatch?.name || selectedSeccional || '';
+      select.disabled = !province || !locality;
+    }
+
+    async function loadSeccionalOptions(province, locality, selectedSeccional = '') {
+      const requestId = ++seccionalRequestId;
+      if (!province || !locality) {
+        renderSeccionalOptions(province, locality, selectedSeccional);
+        return;
+      }
+
+      try {
+        await loadRegistryDirectory();
+      } catch (error) {
+        console.error('No se pudo cargar la lista de registros seccionales:', error);
+        showToast('No se pudo cargar la lista de registros seccionales.', 'error');
+      }
+      if (requestId !== seccionalRequestId ||
+          document.getElementById('client-province').value !== province ||
+          document.getElementById('client-city').value !== locality) return;
+      renderSeccionalOptions(province, locality, selectedSeccional);
+    }
 
     function renderLocalityOptions(localities, selectedLocality = '') {
       const select = document.getElementById('client-city');
@@ -455,7 +570,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
         if (requestId === localityRequestId &&
             document.getElementById('client-province').value === province) {
-          renderLocalityOptions(localities, selectedLocality);
+          const currentLocality = document.getElementById('client-city').value;
+          const localityToKeep = selectedLocality || localities.find(
+            item => item.nombre.toLocaleLowerCase('es') === currentLocality.toLocaleLowerCase('es')
+          )?.nombre || '';
+          renderLocalityOptions(localities, localityToKeep);
         }
       } catch (error) {
         console.warn(`No se pudieron cargar localidades de ${province}:`, error);
@@ -473,7 +592,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
     function onProvinceChange() {
       const province = document.getElementById('client-province').value;
+      seccionalRequestId++;
+      renderSeccionalOptions('', '', '');
       loadLocalities(province);
+      triggerFormUpdate();
+    }
+
+    async function onLocalityChange() {
+      await loadSeccionalOptions(
+        document.getElementById('client-province').value,
+        document.getElementById('client-city').value
+      );
       triggerFormUpdate();
     }
 
@@ -486,7 +615,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         if (!draft) return;
         const province = draft['client-province'] || '';
         const selectedLocality = draft['client-city'] || '';
-        Object.entries(draft).filter(([id]) => id !== 'client-city').forEach(([id, value]) => {
+        const selectedSeccional = draft['client-seccional'] || '';
+        Object.entries(draft).filter(([id]) => id !== 'client-city' && id !== 'client-seccional').forEach(([id, value]) => {
           const element = document.getElementById(id);
           if (element) element.value = value;
         });
@@ -495,6 +625,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         } else if (selectedLocality) {
           renderLocalityOptions([], selectedLocality);
         }
+        await loadSeccionalOptions(province, selectedLocality, selectedSeccional);
       } catch (error) {
         console.warn('No se pudo recuperar el borrador local:', error);
       }
@@ -1371,7 +1502,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       provinceSelect.value = b.client.province || '';
       await loadLocalities(provinceSelect.value, b.client.city || '');
       if (requestId !== budgetFormLoadRequest) return;
-      document.getElementById('client-seccional').value = b.client.seccional;
+      await loadSeccionalOptions(
+        provinceSelect.value,
+        b.client.city || '',
+        b.client.seccional || ''
+      );
+      if (requestId !== budgetFormLoadRequest) return;
 
       document.getElementById('procedure-type').value = b.procedure;
       initChecklist(b.procedure);
@@ -1622,6 +1758,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
     window.onProcedureChange = onProcedureChange;
     window.onOriginChange = onOriginChange;
     window.onProvinceChange = onProvinceChange;
+    window.onLocalityChange = onLocalityChange;
     window.resetTariffsToDefault = resetTariffsToDefault;
     window.recalcAndRender = recalcAndRender;
     window.triggerFormUpdate = triggerFormUpdate;
@@ -1817,7 +1954,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       loadLocalities(
         document.getElementById('client-province').value,
         document.getElementById('client-city').value
-      );
+      ).then(() => loadSeccionalOptions(
+        document.getElementById('client-province').value,
+        document.getElementById('client-city').value,
+        document.getElementById('client-seccional').value
+      ));
       recalcAndRender();
       initCloudSync();
       renderRecentBudgetsBar();

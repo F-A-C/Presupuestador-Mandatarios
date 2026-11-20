@@ -271,13 +271,15 @@
               </div>
               <div>
                 <label for="client-city" class="block text-xs font-semibold text-slate-600 mb-1">Localidad / Municipio</label>
-                <select id="client-city" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-white" onchange="triggerFormUpdate()">
+                <select id="client-city" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-white" onchange="onLocalityChange()">
                   <option value="Corrientes" selected>Corrientes</option>
                 </select>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-600 mb-1">Registro Seccional Radicación</label>
-                <input type="text" id="client-seccional" placeholder="Ej: Corrientes Seccional Nº 2" value="Corrientes Nº 1 (Automotores)" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition" oninput="triggerFormUpdate()">
+                <label for="client-seccional" class="block text-xs font-semibold text-slate-600 mb-1">Registro Seccional Radicación</label>
+                <select id="client-seccional" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-white" onchange="triggerFormUpdate()">
+                  <option value="CORRIENTES Nº 1" selected>CORRIENTES Nº 1</option>
+                </select>
               </div>
             </div>
           </div>

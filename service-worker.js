@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestorauto-v2';
+const CACHE_NAME = 'gestorauto-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   './styles.css',
   './tailwind-config.js',
   './firebase-config.js',
+  './registros-seccionales.json',
   './manifest.webmanifest',
   './icon.svg'
 ];
