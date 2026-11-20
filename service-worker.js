@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestorauto-v1';
+const CACHE_NAME = 'gestorauto-v2';
 const APP_SHELL = [
   './',
   './index.html',

@@ -92,7 +92,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
           dni: "20-28491022-4",
           phone: "3794551122",
           email: "carlos.valenzuela@gmail.com",
-          city: "Corrientes Capital (ACOR)",
+          city: "Corrientes",
+          province: "Corrientes",
           seccional: "Corrientes Nº 2"
         },
         vehicle: {
@@ -139,6 +140,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
           phone: "3777401199",
           email: "s.romero@hotmail.com",
           city: "Goya",
+          province: "Corrientes",
           seccional: "Goya Seccional Única"
         },
         vehicle: {
@@ -229,6 +231,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       const errors = [];
       if (!data.clientName || data.clientName === 'Cliente') errors.push('nombre del cliente');
       if (!data.clientDni || data.clientDni === '-') errors.push('DNI/CUIT');
+      if (!data.clientProvince) errors.push('provincia');
+      if (!data.clientCity) errors.push('localidad/municipio');
       if (!data.vehicleDominio || data.vehicleDominio === 'SIN DOM') errors.push('dominio del vehículo');
       if (!data.vehicleModel || data.vehicleModel === 'Vehículo sin especificar') errors.push('modelo del vehículo');
       if (!data.vehicleValuation || data.vehicleValuation <= 0) errors.push('valuación');
@@ -312,7 +316,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
       activeStorageUid = user.uid;
       loadStoredAppData();
-      restoreDraft();
+      await restoreDraft();
+      recalcAndRender();
       isCloudActive = true;
       if (syncLabel) syncLabel.textContent = "Sincronizado en la nube";
       hideLoginScreen();
@@ -357,7 +362,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
           ? `${STORAGE_KEYS.draft}_${activeStorageUid}`
           : STORAGE_KEYS.draft;
         const fields = [
-          'client-name', 'client-dni', 'client-phone', 'client-email', 'client-city',
+          'client-name', 'client-dni', 'client-phone', 'client-email',
+          'client-province', 'client-city',
           'client-seccional', 'procedure-type', 'vehicle-dominio', 'vehicle-model',
           'vehicle-year', 'vehicle-origin', 'vehicle-valuation'
         ];
@@ -372,17 +378,123 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       }
     }
 
-    function restoreDraft() {
+    let localityRequestId = 0;
+
+    function renderLocalityOptions(localities, selectedLocality = '') {
+      const select = document.getElementById('client-city');
+      select.replaceChildren();
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Seleccionar localidad / municipio';
+      select.appendChild(placeholder);
+
+      const selectedMatch = localities.find(
+        item => item.nombre.toLocaleLowerCase('es') === selectedLocality.toLocaleLowerCase('es')
+      );
+      const hasSelected = Boolean(selectedMatch);
+      if (selectedLocality && !hasSelected) {
+        const savedOption = document.createElement('option');
+        savedOption.value = selectedLocality;
+        savedOption.textContent = `${selectedLocality} (guardada)`;
+        select.appendChild(savedOption);
+      }
+
+      localities.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.nombre;
+        option.textContent = item.nombre;
+        select.appendChild(option);
+      });
+
+      select.value = selectedMatch?.nombre || selectedLocality || '';
+      select.disabled = false;
+    }
+
+    async function loadLocalities(province, selectedLocality = '') {
+      const select = document.getElementById('client-city');
+      const requestId = ++localityRequestId;
+      if (!province) {
+        renderLocalityOptions([], selectedLocality);
+        return;
+      }
+
+      const cacheKey = `georef_localities_${province}`;
+      let cachedLocalities = [];
+      try {
+        const cached = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+        if (Array.isArray(cached)) cachedLocalities = cached;
+      } catch (error) {
+        console.warn('No se pudo leer la caché de localidades:', error);
+      }
+
+      if (cachedLocalities.length) {
+        renderLocalityOptions(cachedLocalities, selectedLocality);
+      } else {
+        select.replaceChildren();
+        const loadingOption = document.createElement('option');
+        loadingOption.textContent = 'Cargando localidades...';
+        select.appendChild(loadingOption);
+        select.disabled = true;
+      }
+
+      try {
+        const url = `https://apis.datos.gob.ar/georef/api/localidades?provincia=${encodeURIComponent(province)}&campos=id,nombre&max=5000`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Georef respondió ${response.status}`);
+        const data = await response.json();
+        const localities = (data.localidades || [])
+          .map(item => ({ id: item.id, nombre: item.nombre }))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+        if (!localities.length) throw new Error('La API no devolvió localidades para la provincia.');
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(localities));
+        } catch (cacheError) {
+          console.warn('No se pudo guardar la caché de localidades:', cacheError);
+        }
+
+        if (requestId === localityRequestId &&
+            document.getElementById('client-province').value === province) {
+          renderLocalityOptions(localities, selectedLocality);
+        }
+      } catch (error) {
+        console.warn(`No se pudieron cargar localidades de ${province}:`, error);
+        if (requestId !== localityRequestId ||
+            document.getElementById('client-province').value !== province) return;
+        if (cachedLocalities.length) {
+          showToast('Sin conexión: se muestran las localidades guardadas.', 'info');
+        } else {
+          renderLocalityOptions([], selectedLocality);
+          select.disabled = true;
+          showToast('No se pudo cargar la lista de localidades. Revisá la conexión e intentá de nuevo.', 'error');
+        }
+      }
+    }
+
+    function onProvinceChange() {
+      const province = document.getElementById('client-province').value;
+      loadLocalities(province);
+      triggerFormUpdate();
+    }
+
+    async function restoreDraft() {
       try {
         const draftKey = activeStorageUid
           ? `${STORAGE_KEYS.draft}_${activeStorageUid}`
           : STORAGE_KEYS.draft;
         const draft = JSON.parse(localStorage.getItem(draftKey));
         if (!draft) return;
-        Object.entries(draft).forEach(([id, value]) => {
+        const province = draft['client-province'] || '';
+        const selectedLocality = draft['client-city'] || '';
+        Object.entries(draft).filter(([id]) => id !== 'client-city').forEach(([id, value]) => {
           const element = document.getElementById(id);
           if (element) element.value = value;
         });
+        if (province) {
+          await loadLocalities(province, selectedLocality);
+        } else if (selectedLocality) {
+          renderLocalityOptions([], selectedLocality);
+        }
       } catch (error) {
         console.warn('No se pudo recuperar el borrador local:', error);
       }
@@ -424,6 +536,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
           phone: data.clientPhone,
           email: document.getElementById('client-email').value,
           city: data.clientCity,
+          province: data.clientProvince,
           seccional: data.clientSeccional
         },
         vehicle: {
@@ -578,7 +691,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
             <span class="text-[10px] font-bold text-slate-400 uppercase block">Cliente</span>
             <strong class="text-slate-900 block text-xs truncate">${b.client.name}</strong>
             <span class="text-slate-500 block text-[11px]">${b.client.phone}</span>
-            <span class="text-slate-500 block text-[11px]">${b.client.city}</span>
+            <span class="text-slate-500 block text-[11px]">${escapeHtml([b.client.city, b.client.province].filter(Boolean).join(', '))}</span>
           </div>
           <div>
             <span class="text-[10px] font-bold text-slate-400 uppercase block">Automotor</span>
@@ -770,6 +883,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       const clientDni = document.getElementById('client-dni').value || "-";
       const clientPhone = document.getElementById('client-phone').value || "-";
       const clientCity = document.getElementById('client-city').value;
+      const clientProvince = document.getElementById('client-province').value;
       const clientSeccional = document.getElementById('client-seccional').value || "-";
 
       const vehicleDominio = (document.getElementById('vehicle-dominio').value || "SIN DOM").toUpperCase();
@@ -836,7 +950,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
       document.getElementById('preview-client').textContent = clientName;
       document.getElementById('preview-dni').textContent = `DNI/CUIT: ${clientDni}`;
-      document.getElementById('preview-loc').textContent = `Rad: ${clientCity} • Secc: ${clientSeccional}`;
+      document.getElementById('preview-loc').textContent =
+        `Rad: ${[clientCity, clientProvince].filter(Boolean).join(', ')} • Secc: ${clientSeccional}`;
 
       document.getElementById('preview-veh').textContent = `${vehicleModel} (${vehicleYear})`;
       document.getElementById('preview-patente').textContent = vehicleDominio;
@@ -887,7 +1002,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       applyDocConfigToVoucher();
 
       return {
-        clientName, clientDni, clientPhone, clientCity, clientSeccional,
+        clientName, clientDni, clientPhone, clientCity, clientProvince, clientSeccional,
         vehicleDominio, vehicleModel, vehicleYear, vehicleOrigin, vehicleValuation,
         procedureKey, procedureText,
         dnrpaRate, dgrRate, dnrpaAmt, dgrAmt, costFormsFixed, costF12, costAcor,
@@ -1065,6 +1180,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       const filtered = budgetDatabase.filter(item => {
         const matchesQuery = (item.client?.name || '').toLowerCase().includes(query) ||
                              (item.vehicle?.dominio || '').toLowerCase().includes(query) ||
+                             (item.client?.city || '').toLowerCase().includes(query) ||
+                             (item.client?.province || '').toLowerCase().includes(query) ||
                              (item.id || '').toLowerCase().includes(query);
         const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
         const matchesProc = filterProc === 'all' || item.procedure === filterProc;
@@ -1101,7 +1218,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
           </td>
           <td class="py-3 px-4 whitespace-nowrap">
               <div class="font-semibold text-slate-800">${escapeHtml(item.client?.name)}</div>
-              <div class="text-[11px] text-slate-500">${escapeHtml(item.client?.phone)} • ${escapeHtml(item.client?.city)}</div>
+              <div class="text-[11px] text-slate-500">${escapeHtml(item.client?.phone)} • ${escapeHtml([item.client?.city, item.client?.province].filter(Boolean).join(', '))}</div>
           </td>
           <td class="py-3 px-4 whitespace-nowrap">
               <span class="px-1.5 py-0.5 rounded font-mono font-bold bg-slate-100 border text-[11px]">${escapeHtml(item.vehicle?.dominio)}</span>
@@ -1169,7 +1286,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
     }
 
     function exportDatabaseCSV() {
-      const headers = ['ID', 'Fecha', 'Estado', 'Cliente', 'DNI_CUIT', 'Telefono', 'Ciudad', 'Tramite', 'Dominio', 'Modelo', 'Ano', 'Valuacion', 'Total'];
+      const headers = ['ID', 'Fecha', 'Estado', 'Cliente', 'DNI_CUIT', 'Telefono', 'Localidad', 'Provincia', 'Tramite', 'Dominio', 'Modelo', 'Ano', 'Valuacion', 'Total'];
       const rows = budgetDatabase.map(item => [
         item.id,
         item.date,
@@ -1178,6 +1295,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         item.client?.dni,
         item.client?.phone,
         item.client?.city,
+        item.client?.province,
         item.procedure,
         item.vehicle?.dominio,
         item.vehicle?.model,
@@ -1237,16 +1355,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       renderHistoryTable();
     }
 
-    function loadBudgetIntoForm(id) {
+    let budgetFormLoadRequest = 0;
+
+    async function loadBudgetIntoForm(id) {
       const b = budgetDatabase.find(x => x.id === id);
       if (!b) return;
+      const requestId = ++budgetFormLoadRequest;
 
       activeBudgetId = b.id;
       document.getElementById('client-name').value = b.client.name;
       document.getElementById('client-dni').value = b.client.dni;
       document.getElementById('client-phone').value = b.client.phone;
       document.getElementById('client-email').value = b.client.email || '';
-      document.getElementById('client-city').value = b.client.city;
+      const provinceSelect = document.getElementById('client-province');
+      provinceSelect.value = b.client.province || '';
+      await loadLocalities(provinceSelect.value, b.client.city || '');
+      if (requestId !== budgetFormLoadRequest) return;
       document.getElementById('client-seccional').value = b.client.seccional;
 
       document.getElementById('procedure-type').value = b.procedure;
@@ -1300,7 +1424,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         `📋 *Trámite:* ${data.procedureText}\n` +
         `🚗 *Automotor:* ${data.vehicleModel} (${data.vehicleYear})\n` +
         `🔢 *Dominio:* ${data.vehicleDominio}\n` +
-        `📍 *Radicación:* ${data.clientCity}\n\n` +
+        `📍 *Localidad:* ${data.clientCity}\n` +
+        `🗺️ *Provincia:* ${data.clientProvince || '-'}\n\n` +
         `*DESGLOSE DE GASTOS:*\n` +
         `• Arancel DNRPA (${data.dnrpaRate}%): $${formatCurrency(data.dnrpaAmt)}\n` +
         `• Sellos DGR Corrientes (${data.dgrRate}%): $${formatCurrency(data.dgrAmt)}\n` +
@@ -1348,6 +1473,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         clientName: b.client.name,
         clientPhone: b.client.phone,
         clientCity: b.client.city,
+        clientProvince: b.client.province || '',
         procedureText: b.procedure.replace('_', ' ').toUpperCase(),
         procedureKey: b.procedure,
         vehicleModel: b.vehicle.model,
@@ -1495,6 +1621,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
     window.setDocState = setDocState;
     window.onProcedureChange = onProcedureChange;
     window.onOriginChange = onOriginChange;
+    window.onProvinceChange = onProvinceChange;
     window.resetTariffsToDefault = resetTariffsToDefault;
     window.recalcAndRender = recalcAndRender;
     window.triggerFormUpdate = triggerFormUpdate;
@@ -1687,6 +1814,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       loadStoredAppData();
       setupAuthLogin();
       initChecklist("transferencia");
+      loadLocalities(
+        document.getElementById('client-province').value,
+        document.getElementById('client-city').value
+      );
       recalcAndRender();
       initCloudSync();
       renderRecentBudgetsBar();

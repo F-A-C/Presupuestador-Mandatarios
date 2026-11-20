@@ -240,19 +240,39 @@
                 </div>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-600 mb-1">Municipio / Localidad</label>
+                <label for="client-province" class="block text-xs font-semibold text-slate-600 mb-1">Provincia</label>
+                <select id="client-province" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-white" onchange="onProvinceChange()">
+                  <option value="">Seleccionar provincia</option>
+                  <option value="Buenos Aires">Buenos Aires</option>
+                  <option>Catamarca</option>
+                  <option>Chaco</option>
+                  <option>Chubut</option>
+                  <option>Ciudad Autónoma de Buenos Aires</option>
+                  <option>Córdoba</option>
+                  <option value="Corrientes" selected>Corrientes</option>
+                  <option>Entre Ríos</option>
+                  <option>Formosa</option>
+                  <option>Jujuy</option>
+                  <option>La Pampa</option>
+                  <option>La Rioja</option>
+                  <option>Mendoza</option>
+                  <option>Misiones</option>
+                  <option>Neuquén</option>
+                  <option>Río Negro</option>
+                  <option>Salta</option>
+                  <option>San Juan</option>
+                  <option>San Luis</option>
+                  <option>Santa Cruz</option>
+                  <option>Santa Fe</option>
+                  <option>Santiago del Estero</option>
+                  <option>Tierra del Fuego, Antártida e Islas del Atlántico Sur</option>
+                  <option>Tucumán</option>
+                </select>
+              </div>
+              <div>
+                <label for="client-city" class="block text-xs font-semibold text-slate-600 mb-1">Localidad / Municipio</label>
                 <select id="client-city" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-white" onchange="triggerFormUpdate()">
-                  <option value="Corrientes Capital (ACOR)" selected>Corrientes Capital (ACOR)</option>
-                  <option value="Goya">Goya</option>
-                  <option value="Paso de los Libres">Paso de los Libres</option>
-                  <option value="Curuzú Cuatiá">Curuzú Cuatiá</option>
-                  <option value="Mercedes">Mercedes</option>
-                  <option value="Bella Vista">Bella Vista</option>
-                  <option value="Ituzaingó">Ituzaingó</option>
-                  <option value="Santo Tomé">Santo Tomé</option>
-                  <option value="Monte Caseros">Monte Caseros</option>
-                  <option value="Esquina">Esquina</option>
-                  <option value="Otra Localidad / Interior">Otra Localidad / Interior</option>
+                  <option value="Corrientes" selected>Corrientes</option>
                 </select>
               </div>
               <div>
