@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gestorauto-v4';
+const CACHE_NAME = 'gestorauto-v5';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,7 +8,8 @@ const APP_SHELL = [
   './firebase-config.js',
   './registros-seccionales.json',
   './manifest.webmanifest',
-  './icon.svg'
+  './icon.svg',
+  './favicon.ico'
 ];
 
 self.addEventListener('install', event => {
