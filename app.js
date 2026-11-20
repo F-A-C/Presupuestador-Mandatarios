@@ -30,6 +30,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       draft: 'gestoria_borrador_v2'
     };
 
+    let activeStorageUid = null;
+
     // Checklist template according to procedure
     const PROCEDURE_DOCUMENTS = {
       transferencia: [
@@ -178,7 +180,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
           Object.assign(GESTOR_CONFIG, storedConfig);
         }
 
-        const storedBudgets = JSON.parse(localStorage.getItem(STORAGE_KEYS.budgets));
+        const budgetKey = activeStorageUid
+          ? `${STORAGE_KEYS.budgets}_${activeStorageUid}`
+          : STORAGE_KEYS.budgets;
+        const storedBudgets = JSON.parse(localStorage.getItem(budgetKey));
         if (Array.isArray(storedBudgets)) {
           budgetDatabase = storedBudgets;
         }
@@ -189,7 +194,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
     function persistBudgets() {
       try {
-        localStorage.setItem(STORAGE_KEYS.budgets, JSON.stringify(budgetDatabase));
+        const budgetKey = activeStorageUid
+          ? `${STORAGE_KEYS.budgets}_${activeStorageUid}`
+          : STORAGE_KEYS.budgets;
+        localStorage.setItem(budgetKey, JSON.stringify(budgetDatabase));
       } catch (error) {
         console.error('No se pudieron guardar los presupuestos localmente:', error);
         showToast('No se pudo guardar una copia local.', 'error');
@@ -291,12 +299,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
       const syncLabel = document.getElementById('sync-status-text');
       if (!user) {
+        activeStorageUid = null;
         isCloudActive = false;
+        budgetDatabase = [];
         if (syncLabel) syncLabel.textContent = "Sin iniciar sesión";
+        renderRecentBudgetsBar();
+        renderHistoryTable();
+        updateBadgeCount();
         showLoginScreen();
         return;
       }
 
+      activeStorageUid = user.uid;
+      loadStoredAppData();
+      restoreDraft();
       isCloudActive = true;
       if (syncLabel) syncLabel.textContent = "Sincronizado en la nube";
       hideLoginScreen();
@@ -319,6 +335,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
     function triggerFormUpdate() {
       recalcAndRender();
+      persistDraft();
 
       // Auto-save debounce (1.2 seconds of idle typing)
       clearTimeout(autoSaveTimer);
@@ -332,6 +349,43 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       autoSaveTimer = setTimeout(() => {
         saveCurrentBudget(true); // silent auto-save
       }, 1200);
+    }
+
+    function persistDraft() {
+      try {
+        const draftKey = activeStorageUid
+          ? `${STORAGE_KEYS.draft}_${activeStorageUid}`
+          : STORAGE_KEYS.draft;
+        const fields = [
+          'client-name', 'client-dni', 'client-phone', 'client-email', 'client-city',
+          'client-seccional', 'procedure-type', 'vehicle-dominio', 'vehicle-model',
+          'vehicle-year', 'vehicle-origin', 'vehicle-valuation'
+        ];
+        const draft = {};
+        fields.forEach(id => {
+          const element = document.getElementById(id);
+          if (element) draft[id] = element.value;
+        });
+        localStorage.setItem(draftKey, JSON.stringify(draft));
+      } catch (error) {
+        console.warn('No se pudo guardar el borrador local:', error);
+      }
+    }
+
+    function restoreDraft() {
+      try {
+        const draftKey = activeStorageUid
+          ? `${STORAGE_KEYS.draft}_${activeStorageUid}`
+          : STORAGE_KEYS.draft;
+        const draft = JSON.parse(localStorage.getItem(draftKey));
+        if (!draft) return;
+        Object.entries(draft).forEach(([id, value]) => {
+          const element = document.getElementById(id);
+          if (element) element.value = value;
+        });
+      } catch (error) {
+        console.warn('No se pudo recuperar el borrador local:', error);
+      }
     }
 
     async function saveCurrentBudget(isAuto = false) {
@@ -993,12 +1047,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       });
     }
 
+    let historyPage = 1;
+    const HISTORY_PAGE_SIZE = 10;
+
     function renderHistoryTable() {
       const tbody = document.getElementById('history-table-body');
       const emptyState = document.getElementById('history-empty-state');
       const query = (document.getElementById('search-query')?.value || '').toLowerCase();
       const filterStatus = document.getElementById('filter-status')?.value || 'all';
       const filterProc = document.getElementById('filter-procedure')?.value || 'all';
+      const dateFrom = document.getElementById('filter-date-from')?.value || '';
+      const dateTo = document.getElementById('filter-date-to')?.value || '';
 
       if (!tbody) return;
       tbody.innerHTML = '';
@@ -1009,16 +1068,24 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                              (item.id || '').toLowerCase().includes(query);
         const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
         const matchesProc = filterProc === 'all' || item.procedure === filterProc;
-        return matchesQuery && matchesStatus && matchesProc;
+        const matchesFrom = !dateFrom || (item.date || '') >= dateFrom;
+        const matchesTo = !dateTo || (item.date || '') <= dateTo;
+        return matchesQuery && matchesStatus && matchesProc && matchesFrom && matchesTo;
       });
 
       if (filtered.length === 0) {
         if (emptyState) emptyState.classList.remove('hidden');
+        historyPage = 1;
+        updateHistoryPagination(filtered.length);
         return;
       }
       if (emptyState) emptyState.classList.add('hidden');
 
-      filtered.forEach(item => {
+      const totalPages = Math.max(1, Math.ceil(filtered.length / HISTORY_PAGE_SIZE));
+      historyPage = Math.min(historyPage, totalPages);
+      const pageItems = filtered.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
+
+      pageItems.forEach(item => {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 transition";
 
@@ -1073,6 +1140,62 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         `;
         tbody.appendChild(tr);
       });
+      updateHistoryPagination(filtered.length);
+    }
+
+    function updateHistoryPagination(totalItems) {
+      const totalPages = Math.max(1, Math.ceil(totalItems / HISTORY_PAGE_SIZE));
+      const summary = document.getElementById('history-summary');
+      const label = document.getElementById('history-page-label');
+      const prev = document.getElementById('history-prev-page');
+      const next = document.getElementById('history-next-page');
+      if (summary) summary.textContent = totalItems === 0
+        ? 'Sin resultados'
+        : `${totalItems} presupuestos · $${formatCurrency(budgetDatabase.reduce((sum, item) => sum + (Number(item.costs?.totalGeneral) || 0), 0))} registrados`;
+      if (label) label.textContent = `Página ${historyPage} de ${totalPages}`;
+      if (prev) prev.disabled = historyPage <= 1;
+      if (next) next.disabled = historyPage >= totalPages;
+    }
+
+    function changeHistoryPage(delta) {
+      historyPage += delta;
+      if (historyPage < 1) historyPage = 1;
+      renderHistoryTable();
+    }
+
+    function csvCell(value) {
+      const text = String(value ?? '');
+      return `"${text.replaceAll('"', '""')}"`;
+    }
+
+    function exportDatabaseCSV() {
+      const headers = ['ID', 'Fecha', 'Estado', 'Cliente', 'DNI_CUIT', 'Telefono', 'Ciudad', 'Tramite', 'Dominio', 'Modelo', 'Ano', 'Valuacion', 'Total'];
+      const rows = budgetDatabase.map(item => [
+        item.id,
+        item.date,
+        item.status,
+        item.client?.name,
+        item.client?.dni,
+        item.client?.phone,
+        item.client?.city,
+        item.procedure,
+        item.vehicle?.dominio,
+        item.vehicle?.model,
+        item.vehicle?.year,
+        item.vehicle?.valuation,
+        item.costs?.totalGeneral
+      ]);
+      const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `presupuestos_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showToast('Historial exportado a CSV.', 'success');
     }
 
     async function updateBudgetStatus(id, newStatus) {
@@ -1397,6 +1520,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
     window.closeConfigModal = closeConfigModal;
     window.saveConfigSettings = saveConfigSettings;
     window.exportDatabaseJSON = exportDatabaseJSON;
+    window.exportDatabaseCSV = exportDatabaseCSV;
+    window.changeHistoryPage = changeHistoryPage;
 
     // PWA Trigger Support
     let deferredPrompt = null;
@@ -1539,4 +1664,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       renderRecentBudgetsBar();
       renderHistoryTable();
       updateBadgeCount();
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./service-worker.js').catch(error => {
+          console.warn('No se pudo instalar el Service Worker:', error);
+        });
+      }
     };
