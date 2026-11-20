@@ -1,0 +1,40 @@
+/* Printable document adjustments */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printable-budget, #printable-budget * {
+        visibility: visible;
+      }
+      #printable-budget {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 20px;
+        box-shadow: none;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #cbd5e1;
+      border-radius: 9999px;
+    }
+    /* Dynamic document styling presets for preview/print */
+    .doc-theme-classic {
+      border-color: #cbd5e1;
+    }
+    .doc-theme-gold {
+      border-color: #d97706 !important;
+    }
+    .doc-theme-minimal {
+      border-color: #475569 !important;
+    }
+  
