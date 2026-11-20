@@ -233,7 +233,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       if (!data.clientDni || data.clientDni === '-') errors.push('DNI/CUIT');
       if (!data.clientProvince) errors.push('provincia');
       if (!data.clientCity) errors.push('localidad/municipio');
-      if (!Number.isInteger(Number(data.vehicleYear)) || Number(data.vehicleYear) < 1950) errors.push('año/modelo');
+      if (!Number.isInteger(Number(data.vehicleYear)) ||
+          Number(data.vehicleYear) < 1900 ||
+          Number(data.vehicleYear) > 2026) errors.push('año/modelo');
+      if (!data.vehicleType) errors.push('tipo de vehículo');
       if (!data.vehicleDominio || data.vehicleDominio === 'SIN DOM') errors.push('dominio del vehículo');
       if (!data.vehicleModel || data.vehicleModel === 'Vehículo sin especificar') errors.push('modelo del vehículo');
       if (!data.vehicleValuation || data.vehicleValuation <= 0) errors.push('valuación');
@@ -366,7 +369,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
           'client-name', 'client-dni', 'client-phone', 'client-email',
           'client-province', 'client-city',
           'client-seccional', 'procedure-type', 'vehicle-dominio', 'vehicle-model',
-          'vehicle-year', 'vehicle-origin', 'vehicle-valuation'
+          'vehicle-year', 'vehicle-type', 'vehicle-origin', 'vehicle-valuation'
         ];
         const draft = {};
         fields.forEach(id => {
@@ -377,6 +380,25 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       } catch (error) {
         console.warn('No se pudo guardar el borrador local:', error);
       }
+    }
+
+    function populateVehicleYearOptions(selectedYear = '') {
+      const select = document.getElementById('vehicle-year');
+      select.replaceChildren();
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Seleccionar año';
+      select.appendChild(placeholder);
+
+      for (let year = 1900; year <= 2026; year++) {
+        const option = document.createElement('option');
+        option.value = String(year);
+        option.textContent = String(year);
+        select.appendChild(option);
+      }
+
+      select.value = String(selectedYear || '');
     }
 
     let localityRequestId = 0;
@@ -673,6 +695,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
           dominio: data.vehicleDominio,
           model: data.vehicleModel,
           year: data.vehicleYear,
+          type: data.vehicleType,
           origin: data.vehicleOrigin,
           valuation: data.vehicleValuation
         },
@@ -751,7 +774,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       renderSeccionalOptions('', '', '');
       document.getElementById('vehicle-dominio').value = '';
       document.getElementById('vehicle-model').value = '';
-      document.getElementById('vehicle-year').value = '0';
+      document.getElementById('vehicle-year').value = '';
+      document.getElementById('vehicle-type').value = '';
       document.getElementById('vehicle-valuation').value = '10000000';
       document.getElementById('budget-status-pill').textContent = 'Borrador';
       initChecklist(document.getElementById('procedure-type').value);
@@ -830,7 +854,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
           </div>
           <div>
             <span class="text-[10px] font-bold text-slate-400 uppercase block">Automotor</span>
-            <strong class="text-slate-900 block text-xs truncate">${b.vehicle.model}</strong>
+            <strong class="text-slate-900 block text-xs truncate">${b.vehicle.model}${b.vehicle.type ? ` • ${b.vehicle.type}` : ''}</strong>
             <span class="font-mono font-bold bg-white px-1.5 py-0.5 rounded border inline-block text-[11px] mt-0.5">${b.vehicle.dominio}</span>
             <span class="text-slate-500 block text-[11px] mt-0.5">Valuación: $${formatCurrency(b.vehicle.valuation)}</span>
           </div>
@@ -1023,7 +1047,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
       const vehicleDominio = (document.getElementById('vehicle-dominio').value || "SIN DOM").toUpperCase();
       const vehicleModel = document.getElementById('vehicle-model').value || "Vehículo sin especificar";
-      const vehicleYear = document.getElementById('vehicle-year').value || "0";
+      const vehicleYear = document.getElementById('vehicle-year').value;
+      const vehicleType = document.getElementById('vehicle-type').value;
       const vehicleOrigin = document.getElementById('vehicle-origin').value;
       const vehicleValuation = parseFloat(document.getElementById('vehicle-valuation').value) || 0;
 
@@ -1088,7 +1113,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       document.getElementById('preview-loc').textContent =
         `Rad: ${[clientCity, clientProvince].filter(Boolean).join(', ')} • Secc: ${clientSeccional}`;
 
-      document.getElementById('preview-veh').textContent = `${vehicleModel} (${vehicleYear})`;
+      document.getElementById('preview-veh').textContent =
+        `${vehicleModel}${vehicleYear ? ` (${vehicleYear})` : ''}${vehicleType ? ` • ${vehicleType}` : ''}`;
       document.getElementById('preview-patente').textContent = vehicleDominio;
       document.getElementById('preview-val-str').textContent = `Valuación DNRPA: $${formatCurrency(vehicleValuation)}`;
 
@@ -1138,7 +1164,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
       return {
         clientName, clientDni, clientPhone, clientCity, clientProvince, clientSeccional,
-        vehicleDominio, vehicleModel, vehicleYear, vehicleOrigin, vehicleValuation,
+        vehicleDominio, vehicleModel, vehicleYear, vehicleType, vehicleOrigin, vehicleValuation,
         procedureKey, procedureText,
         dnrpaRate, dgrRate, dnrpaAmt, dgrAmt, costFormsFixed, costF12, costAcor,
         subtotalRegistral, honorarioBase, complexityFactor, honorariosTotal,
@@ -1527,6 +1553,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       document.getElementById('vehicle-dominio').value = b.vehicle.dominio;
       document.getElementById('vehicle-model').value = b.vehicle.model;
       document.getElementById('vehicle-year').value = b.vehicle.year;
+      document.getElementById('vehicle-type').value = b.vehicle.type || '';
       document.getElementById('vehicle-origin').value = b.vehicle.origin;
       document.getElementById('vehicle-valuation').value = b.vehicle.valuation;
 
@@ -1562,7 +1589,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       const message = `*PRESUPUESTO GESTORÍA AUTOMOTOR CORRIENTES*\n` +
         `Hola *${data.clientName}*, adjuntamos el detalle del presupuesto para su vehículo:\n\n` +
         `📋 *Trámite:* ${data.procedureText}\n` +
-        `🚗 *Automotor:* ${data.vehicleModel} (${data.vehicleYear})\n` +
+        `🚗 *Automotor:* ${data.vehicleModel}${data.vehicleYear ? ` (${data.vehicleYear})` : ''}\n` +
+        `🏷️ *Tipo de vehículo:* ${data.vehicleType || '-'}\n` +
         `🔢 *Dominio:* ${data.vehicleDominio}\n` +
         `📍 *Localidad:* ${data.clientCity}\n` +
         `🗺️ *Provincia:* ${data.clientProvince || '-'}\n\n` +
@@ -1618,6 +1646,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         procedureKey: b.procedure,
         vehicleModel: b.vehicle.model,
         vehicleYear: b.vehicle.year,
+        vehicleType: b.vehicle.type || '',
         vehicleDominio: b.vehicle.dominio,
         dnrpaRate: b.costs.dnrpaRate,
         dnrpaAmt: b.costs.dnrpaAmt,
@@ -1953,6 +1982,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
     // Initialize application on window load
     window.onload = function() {
       loadStoredAppData();
+      populateVehicleYearOptions();
       setupAuthLogin();
       initChecklist("transferencia");
       loadLocalities(
