@@ -108,6 +108,10 @@
           <span class="hidden sm:inline">Presupuesto</span>
           <span class="sm:hidden">Nuevo</span>
         </button>
+        <button onclick="createNewBudgetDraft()" title="Iniciar presupuesto nuevo en blanco" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-white/10 text-slate-200 hover:text-white hover:bg-white/15 border border-slate-700 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-plus-circle"></i>
+          <span class="hidden lg:inline">Nuevo en blanco</span>
+        </button>
         <button id="nav-btn-history" onclick="switchView('history')" class="px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition flex items-center gap-1.5">
           <i class="fa-solid fa-folder-open text-xs sm:text-sm"></i>
           <span class="hidden sm:inline">Historial Guardado</span>
@@ -482,10 +486,7 @@
               </button>
             </div>
 
-            <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-              <button onclick="createNewBudgetDraft()" class="text-brand-600 hover:text-brand-800 font-medium flex items-center gap-1.5">
-                <i class="fa-solid fa-plus-circle"></i> Iniciar Nuevo en Blanco
-              </button>
+            <div class="flex items-center justify-end pt-2 border-t border-slate-100 text-xs">
               <button onclick="copyFormattedText()" class="text-slate-500 hover:text-slate-800 flex items-center gap-1.5">
                 <i class="fa-solid fa-copy"></i> Copiar texto limpio
               </button>
