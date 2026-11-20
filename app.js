@@ -277,7 +277,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
         // RULE 1 & 2: Public collection listener without complex query
         const budgetsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'presupuestos');
-        
+
         onSnapshot(budgetsCollection, (snapshot) => {
           if (!snapshot.empty) {
             const cloudItems = [];
@@ -302,7 +302,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
     function triggerFormUpdate() {
       recalcAndRender();
-      
+
       // Auto-save debounce (1.2 seconds of idle typing)
       clearTimeout(autoSaveTimer);
       const pill = document.getElementById('auto-save-pill');
@@ -792,7 +792,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       const previewDocSummary = document.getElementById('preview-doc-summary');
       previewDocSummary.innerHTML = '';
       const docs = PROCEDURE_DOCUMENTS[procedureKey] || PROCEDURE_DOCUMENTS.transferencia;
-      
+
       let pendings = [];
       docs.forEach(doc => {
         const state = currentDocStatus[doc.id] || 'pendiente';
@@ -1324,7 +1324,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
     function showToast(message, type = 'info') {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
-      
+
       let bg = 'bg-slate-900 text-white';
       let icon = 'fa-circle-info text-blue-400';
       if (type === 'success') {
@@ -1489,4 +1489,3 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       renderHistoryTable();
       updateBadgeCount();
     };
-  
