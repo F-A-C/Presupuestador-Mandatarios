@@ -1,5 +1,11 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+          getAuth,
+          signInWithEmailAndPassword,
+          signOut,
+          onAuthStateChanged,
+          sendPasswordResetEmail
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'gestoria-corrientes';
@@ -248,56 +254,67 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
     };
 
     async function initCloudSync() {
-      if (typeof __firebase_config === 'undefined') {
-        renderRecentBudgetsBar();
-        renderHistoryTable();
-        updateBadgeCount();
-        return;
-      }
-
       try {
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-
-        // RULE 3: Auth before queries
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+        let firebaseConfig = window.GESTORIA_FIREBASE_CONFIG || null;
+        if (typeof __firebase_config !== 'undefined') {
+          firebaseConfig = JSON.parse(__firebase_config);
         }
 
-        currentUser = auth.currentUser;
-        if (!currentUser) return;
-
-        isCloudActive = true;
-        const syncLabel = document.getElementById('sync-status-text');
-        if (syncLabel) syncLabel.textContent = "Sincronizado en la nube";
-
-        // RULE 1 & 2: Public collection listener without complex query
-        const budgetsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'presupuestos');
-
-        onSnapshot(budgetsCollection, (snapshot) => {
-          if (!snapshot.empty) {
-            const cloudItems = [];
-            snapshot.forEach(docSnap => {
-              cloudItems.push(docSnap.data());
-            });
-            // Sort in memory by updatedAt descending
-            cloudItems.sort((a, b) => new Date(b.updatedAt || b.date) - new Date(a.updatedAt || a.date));
-            budgetDatabase = cloudItems;
-          }
+        if (!firebaseConfig) {
+          isCloudActive = false;
           renderRecentBudgetsBar();
           renderHistoryTable();
           updateBadgeCount();
-        }, (error) => {
-          console.error("Firestore sync error:", error);
-        });
+          return;
+        }
+
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        onAuthStateChanged(auth, handleAuthStateChange);
 
       } catch (err) {
         console.warn("Cloud persistence initialized with local memory fallback:", err);
+        showToast('No se pudo conectar la sincronización segura.', 'error');
       }
+    }
+
+    let unsubscribeBudgets = null;
+
+    async function handleAuthStateChange(user) {
+      currentUser = user;
+
+      if (unsubscribeBudgets) {
+        unsubscribeBudgets();
+        unsubscribeBudgets = null;
+      }
+
+      const syncLabel = document.getElementById('sync-status-text');
+      if (!user) {
+        isCloudActive = false;
+        if (syncLabel) syncLabel.textContent = "Sin iniciar sesión";
+        showLoginScreen();
+        return;
+      }
+
+      isCloudActive = true;
+      if (syncLabel) syncLabel.textContent = "Sincronizado en la nube";
+      hideLoginScreen();
+
+      const budgetsCollection = collection(db, 'artifacts', appId, 'users', user.uid, 'presupuestos');
+      unsubscribeBudgets = onSnapshot(budgetsCollection, (snapshot) => {
+        const cloudItems = [];
+        snapshot.forEach(docSnap => cloudItems.push(docSnap.data()));
+        cloudItems.sort((a, b) => new Date(b.updatedAt || b.date) - new Date(a.updatedAt || a.date));
+        if (cloudItems.length > 0) budgetDatabase = cloudItems;
+        renderRecentBudgetsBar();
+        renderHistoryTable();
+        updateBadgeCount();
+      }, (error) => {
+        console.error("Firestore sync error:", error);
+        if (syncLabel) syncLabel.textContent = "Error de sincronización";
+        showToast('No fue posible sincronizar los presupuestos.', 'error');
+      });
     }
 
     function triggerFormUpdate() {
@@ -395,7 +412,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       // If cloud database active, save document to strict path
       if (isCloudActive && db && currentUser) {
         try {
-          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'presupuestos', activeBudgetId);
+          const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'presupuestos', activeBudgetId);
           await setDoc(docRef, newBudget, { merge: true });
         } catch (e) {
           console.error("Cloud save error:", e);
@@ -1066,7 +1083,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         persistBudgets();
         if (isCloudActive && db && currentUser) {
           try {
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'presupuestos', id);
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'presupuestos', id);
             await setDoc(docRef, { status: newStatus, updatedAt: b.updatedAt }, { merge: true });
           } catch (e) {
             console.error(e);
@@ -1085,7 +1102,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       persistBudgets();
       if (isCloudActive && db && currentUser) {
         try {
-          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'presupuestos', id);
+          const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'presupuestos', id);
           await deleteDoc(docRef);
         } catch (e) {
           console.error(e);
@@ -1415,11 +1432,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       modal.classList.remove('flex');
     };
 
-    const DEMO_LOGIN = {
-      email: "admin@gestoria.com",
-      password: "123456"
-    };
-
     function showLoginScreen() {
       document.getElementById('login-screen').classList.remove('hidden');
       document.getElementById('login-screen').classList.add('flex');
@@ -1440,48 +1452,87 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       icon.className = reveal ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
     };
 
-    window.logoutDemoSession = function() {
-      localStorage.removeItem('gestoria_demo_session');
-      sessionStorage.removeItem('gestoria_demo_session');
+    window.logoutSession = async function() {
+      try {
+        if (auth) await signOut(auth);
+      } catch (error) {
+        console.error('Error al cerrar sesión:', error);
+        showToast('No se pudo cerrar la sesión.', 'error');
+      }
       showLoginScreen();
     };
 
-    function setupDemoLogin() {
-      const savedSession = localStorage.getItem('gestoria_demo_session') || sessionStorage.getItem('gestoria_demo_session');
-      if (savedSession === DEMO_LOGIN.email) {
-        hideLoginScreen();
+    function getLoginErrorMessage(error) {
+      const code = error?.code || '';
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') return 'Correo o contraseña incorrectos.';
+      if (code === 'auth/user-not-found') return 'No existe una cuenta con ese correo.';
+      if (code === 'auth/invalid-email') return 'Ingresá un correo electrónico válido.';
+      if (code === 'auth/too-many-requests') return 'Demasiados intentos. Probá nuevamente más tarde.';
+      if (code === 'auth/network-request-failed') return 'No hay conexión con el servicio de autenticación.';
+      return 'No se pudo iniciar sesión. Revisá los datos ingresados.';
+    }
+
+    async function resetPassword() {
+      const email = document.getElementById('login-email').value.trim();
+      const error = document.getElementById('login-error');
+      if (!email) {
+        error.textContent = 'Ingresá tu correo para recuperar la contraseña.';
+        error.classList.remove('hidden');
+        document.getElementById('login-email').focus();
         return;
       }
+      if (!auth) {
+        error.textContent = 'La recuperación requiere configurar Firebase Authentication.';
+        error.classList.remove('hidden');
+        return;
+      }
+      try {
+        await sendPasswordResetEmail(auth, email);
+        error.classList.add('hidden');
+        showToast('Correo de recuperación enviado.', 'success');
+      } catch (resetError) {
+        error.textContent = getLoginErrorMessage(resetError);
+        error.classList.remove('hidden');
+      }
+    }
+    window.resetPassword = resetPassword;
 
+    function setupAuthLogin() {
       showLoginScreen();
-      document.getElementById('login-form').addEventListener('submit', function(event) {
+      const form = document.getElementById('login-form');
+      form.addEventListener('submit', async function(event) {
         event.preventDefault();
-        const email = document.getElementById('login-email').value.trim().toLowerCase();
+        const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value;
-        const remember = document.getElementById('remember-session').checked;
         const error = document.getElementById('login-error');
+        const submitButton = form.querySelector('button[type="submit"]');
 
-        if (email !== DEMO_LOGIN.email || password !== DEMO_LOGIN.password) {
-          error.textContent = 'Correo o contraseña incorrectos.';
+        if (!auth) {
+          error.textContent = 'Autenticación no configurada. Agregá el proyecto Firebase antes de iniciar sesión.';
           error.classList.remove('hidden');
           return;
         }
 
-        error.classList.add('hidden');
-        if (remember) {
-          localStorage.setItem('gestoria_demo_session', email);
-        } else {
-          sessionStorage.setItem('gestoria_demo_session', email);
+        submitButton.disabled = true;
+        submitButton.textContent = 'Iniciando sesión...';
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+          error.classList.add('hidden');
+          showToast('Sesión iniciada correctamente.', 'success');
+        } catch (loginError) {
+          error.textContent = getLoginErrorMessage(loginError);
+          error.classList.remove('hidden');
+        } finally {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Iniciar sesión';
         }
-        hideLoginScreen();
-        showToast('Sesión iniciada correctamente.', 'success');
       });
     }
 
     // Initialize application on window load
     window.onload = function() {
       loadStoredAppData();
-      setupDemoLogin();
+      setupAuthLogin();
       initChecklist("transferencia");
       recalcAndRender();
       initCloudSync();
