@@ -233,6 +233,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       if (!data.clientDni || data.clientDni === '-') errors.push('DNI/CUIT');
       if (!data.clientProvince) errors.push('provincia');
       if (!data.clientCity) errors.push('localidad/municipio');
+      if (!Number.isInteger(Number(data.vehicleYear)) || Number(data.vehicleYear) < 1950) errors.push('año/modelo');
       if (!data.vehicleDominio || data.vehicleDominio === 'SIN DOM') errors.push('dominio del vehículo');
       if (!data.vehicleModel || data.vehicleModel === 'Vehículo sin especificar') errors.push('modelo del vehículo');
       if (!data.vehicleValuation || data.vehicleValuation <= 0) errors.push('valuación');
@@ -448,11 +449,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
       const placeholder = document.createElement('option');
       placeholder.value = '';
-      placeholder.textContent = !locality
-        ? 'Seleccionar localidad primero'
-        : offices.length
-          ? 'Seleccionar registro seccional'
-          : 'No hay registros publicados para esta localidad';
+      placeholder.textContent = !locality || offices.length
+        ? 'Seleccionar registro'
+        : 'No hay registros publicados para esta localidad';
       select.appendChild(placeholder);
 
       const selectedMatch = offices.find(
@@ -501,7 +500,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
       const placeholder = document.createElement('option');
       placeholder.value = '';
-      placeholder.textContent = 'Seleccionar localidad / municipio';
+      placeholder.textContent = 'Seleccionar localidad';
       select.appendChild(placeholder);
 
       const selectedMatch = localities.find(
@@ -746,8 +745,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       document.getElementById('client-dni').value = '';
       document.getElementById('client-phone').value = '';
       document.getElementById('client-email').value = '';
+      document.getElementById('client-province').value = '';
+      loadLocalities('', '');
+      seccionalRequestId++;
+      renderSeccionalOptions('', '', '');
       document.getElementById('vehicle-dominio').value = '';
       document.getElementById('vehicle-model').value = '';
+      document.getElementById('vehicle-year').value = '0';
       document.getElementById('vehicle-valuation').value = '10000000';
       document.getElementById('budget-status-pill').textContent = 'Borrador';
       initChecklist(document.getElementById('procedure-type').value);
@@ -1019,7 +1023,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
       const vehicleDominio = (document.getElementById('vehicle-dominio').value || "SIN DOM").toUpperCase();
       const vehicleModel = document.getElementById('vehicle-model').value || "Vehículo sin especificar";
-      const vehicleYear = document.getElementById('vehicle-year').value || "2021";
+      const vehicleYear = document.getElementById('vehicle-year').value || "0";
       const vehicleOrigin = document.getElementById('vehicle-origin').value;
       const vehicleValuation = parseFloat(document.getElementById('vehicle-valuation').value) || 0;
 

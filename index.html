@@ -249,7 +249,7 @@
                   <option>Chubut</option>
                   <option>Ciudad Autónoma de Buenos Aires</option>
                   <option>Córdoba</option>
-                  <option value="Corrientes" selected>Corrientes</option>
+                  <option value="Corrientes">Corrientes</option>
                   <option>Entre Ríos</option>
                   <option>Formosa</option>
                   <option>Jujuy</option>
@@ -272,13 +272,13 @@
               <div>
                 <label for="client-city" class="block text-xs font-semibold text-slate-600 mb-1">Localidad / Municipio</label>
                 <select id="client-city" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-white" onchange="onLocalityChange()">
-                  <option value="Corrientes" selected>Corrientes</option>
+                  <option value="" selected>Seleccionar localidad</option>
                 </select>
               </div>
               <div>
                 <label for="client-seccional" class="block text-xs font-semibold text-slate-600 mb-1">Registro Seccional Radicación</label>
                 <select id="client-seccional" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-white" onchange="triggerFormUpdate()">
-                  <option value="CORRIENTES Nº 1" selected>CORRIENTES Nº 1</option>
+                  <option value="" selected>Seleccionar registro</option>
                 </select>
               </div>
             </div>
@@ -323,8 +323,8 @@
 
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-600 mb-1">Año / Modelo</label>
-                  <input type="number" id="vehicle-year" value="2021" min="1950" max="2027" class="w-full py-2 px-3 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none text-center font-semibold" oninput="triggerFormUpdate()">
+                  <label for="vehicle-year" class="block text-xs font-semibold text-slate-600 mb-1">Año / Modelo *</label>
+                  <input type="number" id="vehicle-year" value="0" min="1950" max="2027" required class="w-full py-2 px-3 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none text-center font-semibold" oninput="triggerFormUpdate()">
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-600 mb-1">Origen del Rodado</label>
@@ -341,6 +341,10 @@
                     <input type="number" id="vehicle-valuation" value="14200000" step="10000" class="w-full pl-7 pr-3 py-2 text-sm rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none font-bold text-slate-900" oninput="triggerFormUpdate()">
                   </div>
                   <p class="text-[10px] text-slate-400 mt-0.5">Base para cálculo de arancel y sellos DGR.</p>
+                  <a href="https://www.dnrpa.gov.ar/portal_dnrpa/valuaciones2.php" target="_blank" rel="noopener noreferrer" class="mt-2 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    Sacar valuación tabla
+                  </a>
                 </div>
               </div>
             </div>
