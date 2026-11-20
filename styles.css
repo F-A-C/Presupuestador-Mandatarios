@@ -37,3 +37,13 @@
     .doc-theme-minimal {
       border-color: #475569 !important;
     }
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="search"],
+    textarea {
+      text-transform: uppercase;
+    }
+    #login-password {
+      text-transform: none;
+    }

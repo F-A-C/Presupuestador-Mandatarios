@@ -1598,7 +1598,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
     }
 
     async function resetPassword() {
-      const email = document.getElementById('login-email').value.trim();
+      const email = document.getElementById('login-email').value.trim().toLowerCase();
       const error = document.getElementById('login-error');
       if (!email) {
         error.textContent = 'Ingresá tu correo para recuperar la contraseña.';
@@ -1627,7 +1627,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
       const form = document.getElementById('login-form');
       form.addEventListener('submit', async function(event) {
         event.preventDefault();
-        const email = document.getElementById('login-email').value.trim();
+        const email = document.getElementById('login-email').value.trim().toLowerCase();
         const password = document.getElementById('login-password').value;
         const error = document.getElementById('login-error');
         const submitButton = form.querySelector('button[type="submit"]');
@@ -1653,6 +1653,34 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         }
       });
     }
+
+    function uppercaseTextField(event) {
+      const field = event.target;
+      if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
+      if (field.id === 'login-password' || event.isComposing) return;
+      if (field instanceof HTMLInputElement &&
+          !['text', 'email', 'tel', 'search'].includes(field.type)) return;
+
+      const value = field.value;
+      const start = field.selectionStart;
+      const end = field.selectionEnd;
+      const uppercaseValue = value.toUpperCase();
+      if (value === uppercaseValue) return;
+
+      field.value = uppercaseValue;
+      if (start !== null && end !== null && field.type !== 'email') {
+        field.setSelectionRange(
+          value.slice(0, start).toUpperCase().length,
+          value.slice(0, end).toUpperCase().length
+        );
+      }
+    }
+
+    document.addEventListener('input', uppercaseTextField, true);
+    document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="search"], textarea')
+      .forEach(field => {
+        field.value = field.value.toUpperCase();
+      });
 
     // Initialize application on window load
     window.onload = function() {
